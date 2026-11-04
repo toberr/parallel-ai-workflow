@@ -155,5 +155,3 @@ independently verified when only that report was reviewed.
 - Stale generated files: `pnpm test` runs `pnpm openapi` first; running `vitest` directly does not.
 - A browser check at `http://localhost:3000` shows the page without `/api`; use the Caddy URL.
 - Dev servers started for a check must be stopped afterwards (`pnpm wt park <ticket>` in a slot).
-- Playwright and its browsers are third-party software and require compliance review before use
-  in government projects.

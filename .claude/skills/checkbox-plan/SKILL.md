@@ -86,7 +86,6 @@ Done when:
 - Before finishing, check the order: nothing is verified before what it depends on exists, and every decision a later step needs is made or listed as a task.
 - Ask the user only about open decisions that would change the plan's structure; otherwise record the choice as a task or note.
 - Use placeholder data in examples (`user_id: 12345`, `user@example.test`); never real names or identifiers.
-- Where the plan introduces a third-party dependency, service or cloud API, note that it requires compliance review before use in government projects.
 - Write in a clear, formal register.
 
 ## Checkboxes and IDs

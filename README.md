@@ -71,9 +71,5 @@ folder (for example `.agents/skills/`) needs the folder renamed, or symlinked to
 (`ln -s .claude/skills .agents/skills`); the `wt` skill is specific to Claude Code.
 
 ## Third-party software and compliance
-
-Hono, `@hono/zod-openapi`, Zod, Kysely, kysely-ctl, kysely-codegen, `pg`, Next.js and React,
-openapi-typescript, Vitest, Testing Library, jsdom, tsx, playwright-cli and Playwright, and the
-`postgres` and `caddy` Docker images are third-party software. Each requires compliance review
-before it is used in government projects. The `.env` files, database dumps and generated Caddy
+The `.env` files, database dumps and generated Caddy
 sites are git-ignored; do not put dumps of real data into this repository.

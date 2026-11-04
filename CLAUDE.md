@@ -71,5 +71,3 @@ The procedure for attaching to a ticket is in the `wt` skill.
 
 - Everything that can be TypeScript is TypeScript. Imports use explicit `.ts` extensions.
 - Use placeholder data in code, docs and examples; never real names, identifiers or personal data.
-- Dependencies (including the Docker images and Playwright) are third-party software and require
-  compliance review before use in government projects.

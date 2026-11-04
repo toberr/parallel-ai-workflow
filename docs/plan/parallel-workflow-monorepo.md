@@ -425,10 +425,6 @@ Done when:
   untrusted strings. Tests never touch a development database. psql-docker is read-only unless
   the user explicitly asks for `--rw`, and it is for the local database only. Dumps of real
   data must not be put in this repository (GDPR, data minimisation).
-- **Compliance:** Hono, `@hono/zod-openapi`, Zod, Kysely, kysely-ctl, kysely-codegen, `pg`,
-  Next.js/React, openapi-typescript, Vitest, Testing Library, jsdom, tsx,
-  playwright-cli/Playwright, and the `postgres` and `caddy` images are third-party
-  dependencies. Each requires compliance review before it is used in government projects.
 - **Workflow:** implement one phase at a time, check its "Done when" items, then stop for
   review. The user makes all commits.
 - Possible follow-ups: Swagger UI at `/api/docs`; a second shared package (e.g.
