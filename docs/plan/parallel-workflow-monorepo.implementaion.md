@@ -16,7 +16,7 @@ reviews.
 ## Environment findings (2026-11-04)
 
 - Machine: WSL2 (Linux 5.15), Node 24.15.0, pnpm 11.0.9, Docker 28.1.1.
-- **Port conflict:** the hsup-directus stack on the same machine already binds
+- **Port conflict:** the other project stack on the same machine already binds
   `127.0.0.1:80` (its Caddy) and `0.0.0.0:5432` (its PostgreSQL), and it has active slots. Those
   containers are not stopped. Decision: the compose host ports are configurable from the root
   `.env` — `DB_PORT` (already in the plan) and an added `PROXY_PORT` (default `80`). The
@@ -40,7 +40,7 @@ reviews.
     `/var/lib/postgresql` (not `.../data`).
   - Explicit compose project `name: parallel-ai-workflow` and container names
     `parallel-ai-postgres` / `parallel-ai-caddy`, so worktrees address the same shared stack
-    and nothing collides with the `hsup-*` containers. `wt` must run compose from the main
+    and nothing collides with the `other-project-*` containers. `wt` must run compose from the main
     checkout (bind mounts and `.env` resolve relative to the working directory).
   - `PROXY_PORT` added (see Environment findings).
 - Findings: Caddy matches the site address `http://localhost` regardless of the port in the
@@ -120,7 +120,7 @@ reviews.
   in that clone and its own `../wt`. For the duration, the shared stack was started from the
   clone and afterwards brought back to the repository (Caddy validates, postgres healthy,
   `app_dev` restored from the dump). The repository got no commits.
-- On this machine hsup-web's `next dev` holds ports 3100 and 3200 (slots 1 and 2). `wt new`
+- On this machine other-project-web's `next dev` holds ports 3100 and 3200 (slots 1 and 2). `wt new`
   therefore skips slots whose API or web port is busy, `--slot N` refuses them, and `wt ls`
   lists them as busy. The checks used slots 3 and 4 (`http://s3.localhost:8080`,
   `http://s4.localhost:8080`) instead of s1/s2.
@@ -139,7 +139,7 @@ reviews.
     servers that were running (pooled connections would otherwise break).
   - `DB_DATABASE`, `DB_TEST_DATABASE` and `PORT` are removed from every child process `wt`
     starts in a worktree, because process env beats `.env` in `@repo/db`.
-  - `new` calls `claude-access` itself (as in hsup-directus): it adds `../wt` to
+  - `new` calls `claude-access` itself (as in other-project): it adds `../wt` to
     `permissions.additionalDirectories` in the git-ignored `.claude/settings.local.json`.
   - Added root scripts `db:backup`, `db:restore`, `wt`, `check:scripts` (type-checks
     `scripts/`), and root devDependency `@types/node`. `.gitignore` gains

@@ -3,7 +3,7 @@
 Goal: A minimal TypeScript pnpm monorepo (Hono API, Kysely + kysely-ctl + kysely-codegen,
 Next.js web, PostgreSQL, Caddy, Vitest) in which several tickets can be worked on in parallel,
 each in its own git worktree "slot" with its own databases, ports and URLs. The slots are
-managed by a simplified port of the `wt` CLI from hsup-directus. The example feature is a page
+managed by a simplified port of the `wt` CLI from other-project. The example feature is a page
 that lists the rows of a `tickets` table, which it fetches from the API.
 
 Scope: monorepo skeleton, local Docker stack (PostgreSQL, Caddy), a shared workspace package
@@ -180,7 +180,7 @@ Depends on: Phase 3
       newest dump) and migrates them
 - [x] 4.11 `rm`: refuses with uncommitted changes; removes processes, both databases, the Caddy
       site and the worktree; the branch stays
-- [x] 4.12 Add `.claude/skills/wt/SKILL.md`, adapted from hsup-directus (`/wt <ticket>`, the
+- [x] 4.12 Add `.claude/skills/wt/SKILL.md`, adapted from other-project-directus (`/wt <ticket>`, the
       command table with an "ask first" column, pitfalls)
 
 Done when:
