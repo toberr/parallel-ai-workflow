@@ -1,0 +1,43 @@
+# Shared local stack: one postgres and one caddy for the main checkout and all wt slots.
+# Host ports come from the root .env (DB_PORT, PROXY_PORT); both bind 127.0.0.1 only.
+name: parallel-ai-workflow
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: parallel-ai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:?set DB_USER in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_DATABASE:?set DB_DATABASE in .env}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      # postgres 18 images keep the data in a versioned subdirectory of this path
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  caddy:
+    image: caddy:2.11.7-alpine
+    container_name: parallel-ai-caddy
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PROXY_PORT:-80}:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./dev-proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./dev-proxy/sites:/etc/caddy/sites:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,26 @@
+node_modules/
+
+# Environment files: real ones are ignored, examples are tracked
+.env*
+!.env.example
+!.env*.example
+
+# Local database dumps
+db-backups/
+
+# Caddy sites written by wt (one per slot)
+dev-proxy/sites/*.caddy
+
+# Generated files
+packages/db/src/types.generated.ts
+apps/api/openapi.json
+apps/web/src/lib/api-types.generated.ts
+
+# Next.js
+.next/
+next-env.d.ts
+apps/web/tsconfig.tsbuildinfo
+
+# Claude Code local settings (wt claude-access writes the worktree folder here)
+.claude/settings.local.json
+CLAUDE.local.md

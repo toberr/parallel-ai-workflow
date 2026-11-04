@@ -1,0 +1,17 @@
+{
+	auto_https off
+}
+
+# Main checkout. Caddy's host matching ignores the port in the Host header, so this also
+# matches "Host: localhost:8080" when the host publishes PROXY_PORT=8080.
+http://localhost {
+	handle /api/* {
+		reverse_proxy host.docker.internal:4000
+	}
+	handle {
+		reverse_proxy host.docker.internal:3000
+	}
+}
+
+# One file per wt slot (written by wt, git-ignored). An empty folder is fine.
+import sites/*.caddy

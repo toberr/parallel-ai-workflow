@@ -1,0 +1,32 @@
+{
+  "name": "parallel-ai-workflow",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "packageManager": "pnpm@11.0.9",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "dev": "pnpm openapi && pnpm -r --parallel --filter './apps/*' dev",
+    "build": "pnpm openapi && pnpm -r --filter './apps/*' build",
+    "test": "pnpm openapi && vitest run",
+    "typecheck": "pnpm openapi && pnpm -r typecheck",
+    "openapi": "pnpm --filter api openapi && pnpm --filter web openapi:types",
+    "db:migrate": "pnpm --filter @repo/db migrate",
+    "db:migrate:down": "pnpm --filter @repo/db migrate:down",
+    "db:migrate:make": "pnpm --filter @repo/db migrate:make",
+    "db:migrate:list": "pnpm --filter @repo/db migrate:list",
+    "db:codegen": "pnpm --filter @repo/db codegen",
+    "db:backup": "node scripts/db-backup.ts",
+    "db:restore": "node scripts/db-restore.ts",
+    "wt": "node scripts/wt.ts",
+    "check:scripts": "tsc -p scripts/tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@vitejs/plugin-react": "6.2.1",
+    "typescript": "6.0.3",
+    "vitest": "5.1.0"
+  }
+}

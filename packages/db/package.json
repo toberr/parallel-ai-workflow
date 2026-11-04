@@ -1,0 +1,29 @@
+{
+  "name": "@repo/db",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "migrate": "kysely migrate:latest && node scripts/codegen.ts",
+    "migrate:down": "kysely migrate:down && node scripts/codegen.ts",
+    "migrate:make": "kysely migrate:make",
+    "migrate:list": "kysely migrate:list",
+    "codegen": "node scripts/codegen.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "kysely": "0.29.8",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "kysely-codegen": "0.20.0",
+    "kysely-ctl": "0.22.0",
+    "typescript": "6.0.3"
+  }
+}
