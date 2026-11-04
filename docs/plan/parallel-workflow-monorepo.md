@@ -6,8 +6,9 @@ each in its own git worktree "slot" with its own databases, ports and URLs. The 
 managed by a simplified port of the `wt` CLI from hsup-directus. The example feature is a page
 that lists the rows of a `tickets` table, which it fetches from the API.
 
-Scope: monorepo skeleton, local Docker stack (PostgreSQL, Caddy), one kysely-ctl migration
-(`tickets` table and one seed row) with generated database types, one OpenAPI-documented API
+Scope: monorepo skeleton, local Docker stack (PostgreSQL, Caddy), a shared workspace package
+`@repo/db` (`packages/db`) with one kysely-ctl migration (`tickets` table and one seed row)
+and generated database types, used by the API as an example of a shared package, one OpenAPI-documented API
 endpoint, one client-rendered Next.js page, Vitest tests, local DB backup/restore scripts, the
 `wt` CLI, four repository skills (wt, checkbox-plan, playwright-cli, psql-docker), CLAUDE.md as
 a dictionary with direct links to four `*.instructions.md` guides, AGENTS.md pointing to it.
@@ -17,12 +18,12 @@ CI/CD, production deployment, HTTPS.
 ## Phase 1 — Monorepo skeleton and local stack
 
 - [ ] 1.1 Set up the pnpm workspace: root `package.json` (`packageManager` pinned, Node version
-      in `engines`), `pnpm-workspace.yaml` (`apps/*`, plus an `onlyBuiltDependencies` list
-      for the packages whose install scripts must run, e.g. `esbuild`), shared
-      `tsconfig.base.json`, `.nvmrc`, and `.gitignore` (`node_modules`, `.env*` except
-      `*.example`, `db-backups/`, `dev-proxy/sites/*.caddy`, and the generated files:
-      `apps/api/src/db/types.generated.ts`, `apps/api/openapi.json`, the web's generated API
-      types)
+      in `engines`), `pnpm-workspace.yaml` (`apps/*`, `packages/*`, plus an
+      `onlyBuiltDependencies` list for the packages whose install scripts must run, e.g.
+      `esbuild`), shared `tsconfig.base.json`, `.nvmrc`, and `.gitignore` (`node_modules`,
+      `.env*` except `*.example`, `db-backups/`, `dev-proxy/sites/*.caddy`, and the generated
+      files: `packages/db/src/types.generated.ts`, `apps/api/openapi.json`, the web's
+      generated API types)
 - [ ] 1.2 Add `docker-compose.yml` with `postgres` (official image, pinned major version, port
       bound to `127.0.0.1`, named volume, healthcheck) and `caddy` (pinned image,
       `extra_hosts: host.docker.internal:host-gateway`, port 80 on `127.0.0.1`)
@@ -30,8 +31,9 @@ CI/CD, production deployment, HTTPS.
       `http://localhost`, and `import sites/*.caddy` for the slots. Routing per site:
       `/api/*` → API port, everything else → web port
 - [ ] 1.4 Add `.env.example` files with placeholder values only: root (`DB_HOST=127.0.0.1`,
-      `DB_PORT=5432`, `DB_USER=app_dev`, `DB_PASSWORD=change-me`, `DB_DATABASE=app_dev`),
-      `apps/api` (`PORT`, `DATABASE_URL`, `TEST_DATABASE_URL`), `apps/web` (`PORT`)
+      `DB_PORT=5432`, `DB_USER=app_dev`, `DB_PASSWORD=change-me`, `DB_DATABASE=app_dev`,
+      `DB_TEST_DATABASE=app_test`), `apps/api` (`PORT`), `apps/web` (`PORT`). The root `.env`
+      is the only place for database settings (see Notes)
 
 Done when:
 
@@ -39,34 +41,51 @@ Done when:
 - [ ] 1.B `docker compose up -d --wait` shows `postgres` as healthy
 - [ ] 1.C `docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile` succeeds
 
-## Phase 2 — Database and API
+## Phase 2 — Shared database package and API
 
 Depends on: Phase 1
 
-- [ ] 2.1 Create `apps/api`: Hono with `@hono/zod-openapi` and `@hono/node-server`, started with
-      `tsx watch`. It refuses to start without `PORT` and `DATABASE_URL`
-- [ ] 2.2 Add `kysely-ctl` with `kysely.config.ts`: Postgres dialect from `DATABASE_URL`,
-      migrations in `src/db/migrations`, `allowUnorderedMigrations: true` (see Notes). Root
-      scripts: `db:migrate`, `db:migrate:down`, `db:migrate:make <name>`, `db:migrate:list`
+- [ ] 2.11 Create the workspace package `packages/db` (`@repo/db`, `private`). Its
+      `package.json` `exports` points to the TypeScript source (`./src/index.ts`), so there
+      is no build step. It has its own scripts (`migrate`, `migrate:down`, `migrate:make`,
+      `migrate:list`, `codegen`, `typecheck`), and the root `db:*` scripts call them with
+      `pnpm --filter @repo/db …`
+- [ ] 2.12 `packages/db/src/config.ts`: the connection settings are built from `DB_HOST`,
+      `DB_PORT`, `DB_USER`, `DB_PASSWORD` and `DB_DATABASE`, read from the repository root's
+      `.env` (process env wins), and the package stops with a clear message if one is
+      missing. `DB_DATABASE` can be overridden per call, which the test setup uses for
+      `DB_TEST_DATABASE`
+- [ ] 2.2 Add `kysely-ctl` to `packages/db` with `kysely.config.ts`: Postgres dialect from
+      `config.ts`, migrations in `src/migrations`, `allowUnorderedMigrations: true` (see
+      Notes). Root scripts: `db:migrate`, `db:migrate:down`, `db:migrate:make <name>`,
+      `db:migrate:list`
 - [ ] 2.3 Create the migration with `pnpm db:migrate:make create_tickets`. `up` creates
       `tickets` (`id` identity primary key, `name` text not null unique, `git_branch` text not
       null, `services` text[] not null) and inserts one row: `name: 'demo-ticket'`,
       `git_branch: 'feature/demo-ticket'`, `services: ['api', 'web', 'postgres']`. `down` drops
       the table
-- [ ] 2.4 Add `kysely-codegen`: `pnpm db:codegen` generates `src/db/types.generated.ts` from the
-      migrated database (Kysely's migration tables excluded). `pnpm db:migrate` and
-      `pnpm db:migrate:down` run it afterwards, so the types always match the checkout's
-      database. The file is git-ignored and never edited by hand
-- [ ] 2.5 Create the Kysely instance (`src/db/client.ts`, `pg` driver, `DATABASE_URL`), typed
-      with the generated `DB` interface
-- [ ] 2.6 Implement `GET /api/tickets` with a Zod response schema; it returns
-      `[{ "id": 1, "name": "…", "gitBranch": "…", "services": ["…"] }]`
+- [ ] 2.4 Add `kysely-codegen` to `packages/db`: `pnpm db:codegen` generates
+      `packages/db/src/types.generated.ts` from the migrated database (Kysely's migration
+      tables excluded). `pnpm db:migrate` and `pnpm db:migrate:down` run it afterwards, so
+      the types always match the checkout's database. The file is git-ignored and never
+      edited by hand
+- [ ] 2.5 Public API of the package (`src/index.ts`): `createDb()` (Kysely instance with the
+      `pg` driver, typed with the generated `DB` interface) and the table types
+      (`Selectable<Tickets>` etc.). Nothing else is exported; migrations and config
+      internals stay private
+- [ ] 2.1 Create `apps/api`: Hono with `@hono/zod-openapi` and `@hono/node-server`, run with
+      tsx (`dev`: `tsx watch src/index.ts`, `start`: `tsx src/index.ts`; `build` only
+      type-checks, there is no JavaScript output). It depends on `"@repo/db": "workspace:*"`, creates one database instance
+      with `createDb()` at start-up, and refuses to start without `PORT`
+- [ ] 2.6 Implement `GET /api/tickets` with a Zod response schema, querying through
+      `@repo/db`; it returns `[{ "id": 1, "name": "…", "gitBranch": "…", "services": ["…"] }]`
 - [ ] 2.7 Serve the OpenAPI 3.1 document at `GET /api/openapi.json`; `pnpm openapi` writes it to
       `apps/api/openapi.json` (git-ignored) from the code, without a database or a running
       server
 - [ ] 2.8 Set up Vitest: a root `vitest.config.ts` with one project per app (this phase: `api`,
-      Node environment). A global setup creates the database in `TEST_DATABASE_URL` if it is
-      missing and migrates it to the latest version
+      Node environment). A global setup creates the database named in `DB_TEST_DATABASE` if
+      it is missing and migrates it to the latest version with the `@repo/db` migrations
+      (`DB_DATABASE` overridden). The API under test uses that database
 - [ ] 2.9 Add a Vitest test for `/api/tickets` (through `app.request`): status 200, the response
       matches the schema, the seed ticket is included
 - [ ] 2.10 Add root scripts: `dev` (every app's dev server in parallel), `build`, `test`,
@@ -84,6 +103,9 @@ Done when:
       `pnpm db:migrate` and `pnpm typecheck` pass in that order, and `git status` lists no
       generated file
 - [ ] 2.F `pnpm test` leaves the development database (`app_dev`) unchanged
+- [ ] 2.G The API imports database code only through `@repo/db` (`rg "packages/db" apps/`
+      finds no relative imports), `pnpm --filter api ls @repo/db` shows it as a workspace
+      link, and `pnpm --filter @repo/db typecheck` passes on its own
 
 ## Phase 3 — Web app
 
@@ -137,13 +159,23 @@ Depends on: Phase 3
       exist only on the branch are applied to that slot only. Without a dump, `new` stops with
       a hint to run `pnpm db:backup`
 - [ ] 4.8 `new`, files: worktree, `pnpm install --frozen-lockfile`, and the generated env files.
-      The worktree's root `.env` sets `DB_DATABASE=app_wt_<ticket>`, `apps/api/.env` sets
-      `PORT`, `DATABASE_URL` and `TEST_DATABASE_URL`, and `apps/web/.env.local` sets `PORT`.
+      The worktree's root `.env` sets `DB_DATABASE=app_wt_<ticket>` and
+      `DB_TEST_DATABASE=app_wt_<ticket>_test` (used by `@repo/db`, the scripts and
+      psql-docker); `apps/api/.env` and `apps/web/.env.local` set only `PORT`.
       It also writes `dev-proxy/sites/sN.caddy` (and reloads Caddy), plus `CLAUDE.local.md` and
       a `.code-workspace` in the ticket folder
-- [ ] 4.9 `dev`/`park`: start and stop the API and web dev servers in the background with PID
-      tracking (pid + cwd check) and logs in `../wt/<ticket>/logs/`; `dev` ends with the
-      status block
+- [ ] 4.9 `dev`/`park`: start and stop the API and web dev servers in the background, with
+      logs in `../wt/<ticket>/logs/`; `dev` ends with the status block. Process handling uses
+      only Node built-ins and works the same on Linux, macOS and Windows:
+    - [ ] 4.9.1 Running state comes from the slot's ports. A server counts as running when a
+          TCP connection to its port succeeds (`node:net`); `ls`, `info`, `dev` and `park`
+          use this check. The stored PID is used only for stopping. No working-directory
+          check, so a reused PID can no longer be mistaken for a running server
+    - [ ] 4.9.2 Stopping goes through one helper with a single platform branch. On POSIX,
+          the server is started `detached` (its own process group) and stopped with
+          `process.kill(-pid)`, SIGTERM first and SIGKILL after a timeout. On Windows it is
+          stopped with `taskkill /PID <pid> /T /F`. `park` then waits until the ports are
+          closed, and it reports any port that stays open
 - [ ] 4.10 `reset`: restores both ticket databases from the ticket's dump (`--latest`: the
       newest dump) and migrates them
 - [ ] 4.11 `rm`: refuses with uncommitted changes; removes processes, both databases, the Caddy
@@ -170,6 +202,9 @@ Done when:
       main applies both without errors
 - [ ] 4.H `pnpm wt rm demo-one --yes` leaves no route, database, process or worktree
       (`pnpm wt ls`, `git worktree list`, `psql \l`)
+- [ ] 4.I After `pnpm wt park demo-one`, the slot's API and web ports are closed and no
+      process of the slot is left, including the workers that `next dev` starts (checked
+      with `ps` on Linux)
 
 ## Phase 5 — Documentation and agent skills
 
@@ -181,7 +216,10 @@ Depends on: Phase 4
           schema, environment variables, `pnpm openapi`
     - [ ] 5.1.2 `web.instructions.md`: Next.js structure, client components, data fetching
           through `/api` (same origin via Caddy), generated API types
-    - [ ] 5.1.3 `database.instructions.md`: the schema-change workflow (`db:migrate:make` →
+    - [ ] 5.1.3 `database.instructions.md`: the `@repo/db` package as the example of a shared
+          workspace package (what it exports, how an app adds it with `workspace:*`, why it
+          has no build step, how to add another shared package the same way); the
+          schema-change workflow (`db:migrate:make` →
           `up`/`down` → `db:migrate`, which regenerates the types → commit the migration);
           migration rules (one change per migration, no edits after merge, unordered
           migrations allowed); slot databases and backup/restore; data inspection with the
@@ -215,12 +253,15 @@ Depends on: Phase 4
 - [ ] 5.5 Copy the checkbox-plan skill to `.claude/skills/checkbox-plan/SKILL.md`, with its
       default plan location set to `docs/plan/<slug>.md` and no tool- or model-specific text
 - [ ] 5.6 Write `CLAUDE.md` as a dictionary: a glossary (slot, wt ticket, `tickets` table, main
-      checkout, dump, migration, generated types, …), short entries for the monorepo layout,
+      checkout, dump, migration, generated types, workspace package, …), short entries for the
+      monorepo layout (`apps/` vs `packages/`),
       Caddy routing and `wt`, an "Instructions" table and a "Skills" table with direct
       relative links. It contains no detailed procedures
 - [ ] 5.7 Add `AGENTS.md`: a short statement that `CLAUDE.md` is the project's dictionary,
       with a link to it. It repeats no content
-- [ ] 5.8 Write `README.md`: prerequisites (Node, pnpm, Docker, playwright-cli), quick start
+- [ ] 5.8 Write `README.md`: supported environments (Linux, macOS, Windows through WSL2 with
+      the repository in the Linux file system; native Windows untested, see Notes),
+      prerequisites (Node, pnpm, Docker, playwright-cli), quick start
       (stack up, `pnpm db:migrate`, `pnpm dev`), links to `CLAUDE.md`, `AGENTS.md`, the
       guides and the skills, and a note that the skills live in `.claude/skills/` (Claude
       Code's location). For an agent that does not read that folder, rename the folder or
@@ -244,6 +285,84 @@ Done when:
 
 ## Notes
 
+- **Directory layout** (target; *generated* files are git-ignored):
+
+  ```
+  parallel-ai-workflow/
+  ├── AGENTS.md  CLAUDE.md  README.md
+  ├── package.json  pnpm-workspace.yaml  pnpm-lock.yaml
+  ├── tsconfig.base.json  vitest.config.ts  docker-compose.yml
+  ├── .env.example  .gitignore  .nvmrc
+  ├── apps/
+  │   ├── api/
+  │   │   ├── package.json                     # depends on "@repo/db": "workspace:*"
+  │   │   ├── tsconfig.json  .env.example      # PORT only
+  │   │   ├── openapi.json                     # generated
+  │   │   ├── scripts/write-openapi.ts         # `pnpm openapi`
+  │   │   ├── test/global-setup.ts             # creates + migrates the test database
+  │   │   └── src/
+  │   │       ├── index.ts                     # starts the server (PORT)
+  │   │       ├── app.ts                       # Hono app + OpenAPI doc, no listen()
+  │   │       ├── env.ts                       # required env vars, fails fast
+  │   │       └── routes/tickets.ts  routes/tickets.test.ts
+  │   └── web/
+  │       ├── package.json  tsconfig.json  next.config.ts  .env.example
+  │       └── src/
+  │           ├── app/layout.tsx  app/page.tsx
+  │           ├── components/tickets-list.tsx  components/tickets-list.test.tsx
+  │           └── lib/api-types.generated.ts   # generated (openapi-typescript)
+  ├── packages/
+  │   └── db/                                  # @repo/db, shared workspace package
+  │       ├── package.json                     # exports ./src/index.ts, no build step
+  │       ├── tsconfig.json  kysely.config.ts
+  │       └── src/
+  │           ├── index.ts                     # public API: createDb(), table types
+  │           ├── config.ts                    # DB_* from the root .env
+  │           ├── client.ts
+  │           ├── types.generated.ts           # generated (kysely-codegen)
+  │           └── migrations/<timestamp>_create_tickets.ts
+  ├── dev-proxy/
+  │   ├── Caddyfile
+  │   └── sites/                               # sN.caddy written by wt (ignored), .gitkeep
+  ├── scripts/                                 # repo tooling, plain `node`, no dependencies
+  │   ├── tsconfig.json
+  │   ├── lib/common.ts  lib/db.ts
+  │   └── db-backup.ts  db-restore.ts  wt.ts
+  ├── db-backups/                              # dumps (ignored)
+  ├── docs/
+  │   ├── plan/parallel-workflow-monorepo.md
+  │   └── instructions/{api,web,database,testing}.instructions.md
+  └── .claude/skills/
+      ├── wt/SKILL.md
+      ├── checkbox-plan/SKILL.md
+      ├── playwright-cli/SKILL.md  playwright-cli/references/
+      └── psql-docker/SKILL.md  psql-docker/psql.ts
+
+  ../wt/                                       # created by wt, outside the repository
+  ├── wt-state.json
+  └── <ticket>/
+      ├── parallel-ai-workflow/                # the git worktree
+      ├── logs/                                # api.log, web.log
+      ├── CLAUDE.local.md
+      └── <ticket>.code-workspace
+  ```
+
+  `app.ts` is separate from `index.ts` so that tests and `write-openapi.ts` can import the
+  app without starting a server. Tests are placed next to the code they test. The web does
+  not use `@repo/db`; it gets its types from `openapi.json`.
+- **Shared package `@repo/db`:** an example of how a workspace package works, even though
+  only the API uses it for now. It is an "internal" package: `exports` points to the
+  TypeScript source, and the consumers (tsx, Vitest, `tsc` with bundler module resolution)
+  compile it themselves, so it has no build step and changes need no rebuild. The API runs
+  through tsx in `dev` and `start` (decided), because Node's own type stripping refuses `.ts`
+  files under `node_modules`; so the API has no compile step either. Plain `node` is used
+  only for the repo scripts in `scripts/`, which import nothing from the workspace. The
+  `@repo/` scope is local-only and never published.
+- **Database settings come only from the root `.env`:** `DB_*` is read by Docker Compose,
+  `@repo/db` (and therefore the API, kysely-ctl and kysely-codegen), the DB scripts and
+  psql-docker. There is no `DATABASE_URL` in the app `.env` files, so a checkout has one
+  place that names its database, and `wt` only rewrites `DB_DATABASE` and
+  `DB_TEST_DATABASE` there.
 - **Language:** everything that has a TypeScript form is TypeScript (including
   `kysely.config.ts`, `vitest.config.ts`, `psql.ts`). Exceptions: `docker-compose.yml`,
   `Caddyfile`, `.env*`, JSON/YAML config. Scripts run directly with `node` (type stripping,
@@ -283,6 +402,21 @@ Done when:
   agents). The copied skills contain no tool- or model-specific text. The `wt` skill stays
   specific to Claude Code (`/wt`, `claude-access`). The playwright-cli `allowed-tools` front
   matter is kept; other agents ignore it.
+- **Windows:** the supported environments are Linux, macOS and Windows through WSL2. On
+  WSL2, the repository belongs in the Linux file system (e.g. `~/projects`), not under
+  `/mnt/c`, where installs and hot-reload file watching are slow and unreliable. Native
+  Windows is untested. pnpm's workspace links work there (directory junctions, no admin
+  rights). Process handling in `wt` is written to be cross-platform (4.9.1: running state
+  from the ports; 4.9.2: `taskkill /T` on Windows), but it has only been tested on POSIX.
+  Other problems `wt` may run into:
+  - path length: `..\wt\<ticket>\parallel-ai-workflow\node_modules\.pnpm\…` can exceed
+    260 characters (enable `LongPathsEnabled` and `git config core.longpaths true`);
+  - a pnpm store on another drive than the worktrees: pnpm copies instead of hard-linking,
+    so each `wt new` install is slower and uses more disk;
+  - shell differences in commands that `wt` runs (quoting, `docker compose exec` with
+    redirected input) and line endings (`core.autocrlf` must not change scripts or SQL).
+  The README states the supported environments. Native Windows support for `wt` is a
+  possible follow-up.
 - **Versions:** current versions are looked up and pinned at implementation time. kysely-ctl
   is still 0.x.
 - **Security:** `.env.example` files contain placeholders only. Real `.env` files, dumps and
@@ -297,6 +431,6 @@ Done when:
   dependencies. Each requires compliance review before it is used in government projects.
 - **Workflow:** implement one phase at a time, check its "Done when" items, then stop for
   review. The user makes all commits.
-- Possible follow-ups: Swagger UI at `/api/docs`; a shared `packages/db` if a second app needs
-  the database; CI for `test`/`typecheck` (with a Postgres service); a Playwright smoke
+- Possible follow-ups: Swagger UI at `/api/docs`; a second shared package (e.g.
+  `packages/api-contract` with the Zod schemas, if the web should share them); CI for `test`/`typecheck` (with a Postgres service); a Playwright smoke
   test per slot; moving the skills to a tool-neutral `.agents/skills/` folder.
