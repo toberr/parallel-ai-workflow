@@ -37,7 +37,11 @@ Full command reference: `pnpm wt --help` and `pnpm wt <command> --help`.
    - the worktree's own `.env` names its databases; never export `DB_DATABASE`,
      `DB_TEST_DATABASE` or `PORT` in a shell;
    - browser checks on the slot URL (`http://sN.localhost`, plus `:<PROXY_PORT>` when `PROXY_PORT`
-     in the root `.env` is not 80; the status block shows the right one).
+     in the root `.env` is not 80; the status block shows the right one);
+   - file links in chat use the **absolute** worktree path as the link target, e.g.
+     `[index.ts](/home/.../wt/<ticket>/parallel-ai-workflow/apps/api/src/index.ts#L42)`. The
+     editor has the main checkout open, so relative links (`apps/...`) open the main checkout's
+     file or nothing, never the worktree's.
 
 When the work spans several tickets, use one session per ticket.
 
@@ -46,6 +50,7 @@ When the work spans several tickets, use one session per ticket.
 | Command | Effect | Ask the user first? |
 |---|---|---|
 | `ls`, `info <ticket>` | Read-only: all slots / one ticket's status block and rules | no |
+| `info <ticket> --json` | Read-only: only a JSON object (URLs, ports, server status and PIDs, database names, Caddy, paths; no password) for scripts and test tools; shape in `pnpm wt info --help` | no |
 | `dev <ticket>` | Start the API and web dev servers in the background (logs in `../wt/<ticket>/logs/`); ends with the status block | no |
 | `park <ticket>` | Stop the dev servers and their child processes; worktree and databases stay | no |
 | `new <branch> [--base <ref>] [--dump <file>] [--slot N]` | Worktree (new branch from `main`, or from `--base`), env files, install, both databases from the newest dump, migrations, Caddy route | yes |

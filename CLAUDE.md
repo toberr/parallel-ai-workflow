@@ -47,7 +47,9 @@ are containers.
 
 `pnpm wt` creates, starts, parks, resets and removes `wt` tickets (`pnpm wt help` lists the
 commands). The session stays in the main checkout; ticket work targets the worktree explicitly.
-The procedure for attaching to a ticket is in the `wt` skill.
+The procedure for attaching to a ticket is in the `wt` skill. `pnpm wt info <ticket> --json`
+prints only a JSON object with the slot's URLs, ports, server status, database names and paths
+(no password) for scripts and test tools; its shape is in `pnpm wt info --help`.
 
 ## Instructions
 
@@ -63,7 +65,7 @@ The procedure for attaching to a ticket is in the `wt` skill.
 | Skill | Use for |
 |---|---|
 | [wt](.claude/skills/wt/SKILL.md) | Working on a ticket in a slot: `/wt <ticket>`, creating, starting, parking, resetting, removing |
-| [checkbox-plan](.claude/skills/checkbox-plan/SKILL.md) | Writing a checkbox plan in `docs/plan/` |
+| [checkbox-plan](.claude/skills/checkbox-plan/SKILL.md) | Writing a checkbox plan in `docs/plan/`, with the models and effort levels for its implementation |
 | [playwright-cli](.claude/skills/playwright-cli/SKILL.md) | Driving and checking pages in a browser |
 | [psql-docker](.claude/skills/psql-docker/SKILL.md) | Read-only inspection of the local database |
 
@@ -71,3 +73,6 @@ The procedure for attaching to a ticket is in the `wt` skill.
 
 - Everything that can be TypeScript is TypeScript. Imports use explicit `.ts` extensions.
 - Use placeholder data in code, docs and examples; never real names, identifiers or personal data.
+- No phase commits: when a plan is implemented here, nobody commits after a phase (the "Phase
+  commits" of the global plan-implementation guide are off; phases are reviewed with its
+  snapshot fallback). The user commits.

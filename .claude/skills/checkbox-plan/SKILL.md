@@ -10,7 +10,7 @@ Write one Markdown file that a person or a coding agent can follow and tick off.
 ## Choose the shape
 
 - **Flat checklist**: up to roughly 8 tasks that can be done and checked in one sitting.
-- **Phased plan**: more tasks, or steps that should be implemented, validated and committed separately. Use 2–5 phases, ordered by dependency.
+- **Phased plan**: more tasks, or steps that should be implemented, validated and reviewed separately. Use 2–5 phases, ordered by dependency.
 
 If unsure, start flat; convert to phases only when the list grows or contains natural checkpoints.
 
@@ -18,9 +18,32 @@ If unsure, start flat; convert to phases only when the list grows or contains na
 
 Use the location the user names. Otherwise use `docs/plan/<slug>.md`, where `<slug>` is short and kebab-case (for example `fix-login-redirect`).
 
+## Execution settings
+
+Every plan starts with a front-matter block that sets the models and effort levels used when the plan is implemented (see `/home/toberritter/.claude/docs/plan-implementation.md`):
+
+| Key | Default | Used for |
+|---|---|---|
+| `implement_model` | `sonnet` | The subagent that implements each phase |
+| `implement_effort` | `high` | Its effort level |
+| `browser_model` | `haiku` | The browser-testing subagent |
+| `browser_effort` | `xhigh` | Its effort level |
+
+- Models: `haiku`, `sonnet`, `opus`, `fable` (aliases only, no model IDs). Effort: `low`, `medium`, `high`, `xhigh`, `max`.
+- If the user names a model or effort in the planning request (e.g. "/checkbox-plan ... implement with opus medium, browser on high"), write those values; fill the rest with the defaults. Ask only if a value is ambiguous or invalid.
+- When updating an existing plan, keep its block as it is unless the user asks to change it; add the block with defaults if it is missing.
+- The Opus escalation for failed fix rounds is not configured here; it follows the implementation doc.
+
 ## Flat template
 
 ``` md
+---
+implement_model: sonnet
+implement_effort: high
+browser_model: haiku
+browser_effort: xhigh
+---
+
 # <Title>
 
 Goal: <one or two sentences describing the observable end state>
@@ -47,6 +70,13 @@ Scope: <what is included> · Not included: <explicit non-goals>
 ## Phased template
 
 ``` md
+---
+implement_model: sonnet
+implement_effort: high
+browser_model: haiku
+browser_effort: xhigh
+---
+
 # <Title>
 
 Goal: <one or two sentences>
@@ -86,6 +116,7 @@ Done when:
 - Before finishing, check the order: nothing is verified before what it depends on exists, and every decision a later step needs is made or listed as a task.
 - Ask the user only about open decisions that would change the plan's structure; otherwise record the choice as a task or note.
 - Use placeholder data in examples (`user_id: 12345`, `user@example.test`); never real names or identifiers.
+- Where the plan introduces a third-party dependency, service or cloud API, note that it requires compliance review before use in government projects.
 - Write in a clear, formal register.
 
 ## Checkboxes and IDs
@@ -96,4 +127,8 @@ Done when:
 
 ## Working through a phased plan
 
-Implement one phase at a time: complete its tasks, check its "Done when" criteria, tick the boxes, add any decision a later phase needs to Notes, then stop for review or commit before the next phase.
+Implement one phase at a time: complete its tasks, check its "Done when" criteria, tick the boxes, and add any decision a later phase needs to Notes before the next phase.
+
+When the user asks to implement the plan, follow `/home/toberritter/.claude/docs/plan-implementation.md`: each phase (or a flat checklist as a whole) goes to its own new subagent, the main agent reviews it, and fixes go back to the same subagent.
+
+**No phase commits in this repository.** The implementation doc's "Phase commits" do not apply here: treat every run as "no commits" and use its snapshot fallback to review each phase's diff. Neither the main agent nor a subagent commits, stages or pushes; the changes stay in the working tree and the user commits them.

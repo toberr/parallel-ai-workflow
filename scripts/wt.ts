@@ -76,7 +76,8 @@ Commands:
   reset <ticket> [--latest] [--yes]   Restore both ticket databases from the dump again
   rm <ticket> [--yes]                 Remove processes, databases, Caddy route and worktree
   ls                                  List tickets with slot, branch, server status and URL
-  info <ticket>                       Print the ticket's status block and working rules (Markdown)
+  info <ticket> [--json]              Print the ticket's status block and working rules (Markdown);
+                                      --json: only a machine-readable JSON object (for tools)
   claude-access                       Let Claude sessions of the main checkout edit WT_ROOT
   help [command]                      Show this help, or a command's (same as <command> --help)
 
@@ -522,6 +523,40 @@ async function ticketSummary(ticket: Ticket): Promise<string> {
   return [`Ticket ${ticket.name} - slot ${ticket.slot} - branch ${ticket.branch}`, ...lines].join('\n');
 }
 
+/**
+ * The ticket's facts as one machine-readable object (`info --json`), for tools that run against
+ * a slot (test suites, scripts). Same sources as ticketSummary / ticketMarkdown; never a secret
+ * (no DB password). The keys are a stable contract (`version`); documented in the `info` help.
+ */
+async function ticketJson(ticket: Ticket) {
+  const s = slotInfo(ticket.slot);
+  const db = dbConfig();
+  const running = await runningServers(ticket);
+  // Running = the port accepts connections; the PID is the stored one, only while it is running
+  const server = (key: ServerKey) => ({
+    up: running.includes(key),
+    pid: running.includes(key) ? (ticket.processes[key] ?? null) : null,
+  });
+  return {
+    version: 1,
+    ticket: ticket.name,
+    slot: ticket.slot,
+    branch: ticket.branch,
+    urls: {
+      web: s.url,
+      api: `${s.url}/api`,
+      webHost: `http://localhost:${s.webPort}`,
+      apiHost: `http://localhost:${s.apiPort}/api`,
+    },
+    ports: { api: s.apiPort, web: s.webPort },
+    servers: { api: server('api'), web: server('web') },
+    database: { name: ticket.database, testName: ticket.testDatabase, user: db.user, dump: ticket.dump },
+    caddy: { host: s.host, running: serviceRunning(mainRoot, 'caddy') },
+    worktree: ticket.worktree,
+    logs: join(ticketDir(ticket.name), 'logs'),
+  };
+}
+
 // ---------------------------------------------------------------------------------------------
 // Commands
 
@@ -798,8 +833,17 @@ async function cmdClaudeAccess(): Promise<void> {
   console.log('Running Claude sessions pick it up after a restart.');
 }
 
-async function cmdInfo({ positionals }: { values: Values; positionals: string[] }): Promise<void> {
+const INFO_OPTIONS = {
+  json: { type: 'boolean' },
+} as const satisfies ParseArgsOptionsConfig;
+
+async function cmdInfo({ values, positionals }: { values: Values; positionals: string[] }): Promise<void> {
   const ticket = getTicket(positionals[0]);
+  if (values.json) {
+    // Only the JSON on stdout; no status block, no CLAUDE.local.md refresh
+    console.log(JSON.stringify(await ticketJson(ticket), null, 2));
+    return;
+  }
   writeTicketFiles(ticket);
   console.log(`${await ticketSummary(ticket)}\n\n${ticketMarkdown(ticket)}`);
 }
@@ -894,13 +938,26 @@ each developer's own WT_ROOT, nothing is versioned. Restart running sessions aft
   },
   info: {
     run: cmdInfo,
-    options: NO_OPTIONS,
-    help: `Usage: pnpm wt info <ticket>
+    options: INFO_OPTIONS,
+    help: `Usage: pnpm wt info <ticket> [--json]
 
 Prints the ticket's status block (URL, ports, server status, databases, Caddy route, worktree),
 then its branch, paths and working rules as Markdown (and refreshes
 <WT_ROOT>/<ticket>/CLAUDE.local.md, which holds the Markdown part). The /wt skill loads this
-into a Claude session.`,
+into a Claude session.
+
+Options:
+  --json   Print only one JSON object on stdout (no status block, no Markdown, CLAUDE.local.md
+           is not written), for tools that run against the slot. An unknown ticket exits
+           non-zero with the error on stderr. Never contains the DB password.
+           Shape (version 1):
+             version, ticket, slot, branch
+             urls      { web, api (browser, via Caddy), webHost, apiHost (host processes, Node, curl) }
+             ports     { api, web }
+             servers   { api, web }: { up (port accepts connections), pid (stored PID while up, else null) }
+             database  { name, testName, user, dump (file the databases were restored from) }
+             caddy     { host (site address), running (the shared caddy service) }
+             worktree  (absolute path), logs (folder of api.log / web.log)`,
   },
 };
 
