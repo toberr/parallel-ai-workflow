@@ -35,3 +35,19 @@ describe("GET /api/openapi.json", () => {
     expect(doc.paths).toHaveProperty("/api/tickets");
   });
 });
+
+describe("GET /api/docs", () => {
+  it("serves a Swagger UI page for the OpenAPI document when devRoutes is on", async () => {
+    const res = await createApp({ db, devRoutes: true }).request("/api/docs");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/^text\/html/);
+    const html = await res.text();
+    expect(html).toContain("swagger-ui-dist@5.34.1");
+    expect(html).toContain("/api/openapi.json");
+  });
+
+  it("is not served by default", async () => {
+    const res = await app.request("/api/docs");
+    expect(res.status).toBe(404);
+  });
+});

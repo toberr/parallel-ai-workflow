@@ -5,7 +5,8 @@ import { createDb } from "@repo/db";
 import { createApp, openApiInfo } from "../src/app.ts";
 
 const db = createDb(); // lazy pool: nothing connects unless a route runs
-const app = createApp({ db });
+// The document describes the dev server, so it includes the development routes (/api/wt-tickets)
+const app = createApp({ db, devRoutes: true });
 const document = app.getOpenAPI31Document(openApiInfo);
 writeFileSync(
   fileURLToPath(new URL("../openapi.json", import.meta.url)),

@@ -75,7 +75,8 @@ Commands:
   park <ticket>                       Stop the dev servers (keeps worktree and databases)
   reset <ticket> [--latest] [--yes]   Restore both ticket databases from the dump again
   rm <ticket> [--yes]                 Remove processes, databases, Caddy route and worktree
-  ls                                  List tickets with slot, branch, server status and URL
+  ls [--json]                         List tickets with slot, branch, server status and URL;
+                                      --json: only a machine-readable JSON object (for tools)
   info <ticket> [--json]              Print the ticket's status block and working rules (Markdown);
                                       --json: only a machine-readable JSON object (for tools)
   claude-access                       Let Claude sessions of the main checkout edit WT_ROOT
@@ -88,6 +89,12 @@ Slot N (1-${MAX_SLOTS}):
   databases  app_wt_<ticket> and app_wt_<ticket>_test (hyphens become underscores)
 
 The *.localhost names resolve in browsers only; host tools (curl, Node) use the ports.
+
+Machine-readable output (--json on \`ls\` and \`info\`): stdout holds exactly one JSON object and
+nothing else, so it can be piped into a parser (\`pnpm wt ls --json | jq '.tickets[].url'\`).
+Errors go to stderr with a non-zero exit code. Each object has a \`version\` (currently 1) that
+changes only when keys are removed or change meaning. It never holds the database password;
+\`ls --json\` holds no paths or PIDs either. The shapes: \`pnpm wt ls --help\`, \`pnpm wt info --help\`.
 
 Databases: \`new\` restores the newest dump in db-backups/ (written by \`pnpm db:backup\`) or
 the one given with --dump into both databases and then runs \`pnpm db:migrate\` in the
@@ -801,8 +808,48 @@ async function cmdRm({ values, positionals }: { values: Values; positionals: str
   console.log(`\nTicket '${ticket.name}' removed. Branch '${ticket.branch}' is kept.`);
 }
 
-async function cmdLs(): Promise<void> {
+/**
+ * All tickets and the slot overview as one machine-readable object (`ls --json`), for tools such
+ * as the API's /api/wt-tickets. Keys are a stable contract (`version`); documented in the `ls`
+ * help. Only names, branches, URLs and ports: no paths, PIDs or database settings.
+ */
+async function lsJson(tickets: Ticket[]) {
+  const unassigned = Array.from({ length: MAX_SLOTS }, (_, i) => i + 1).filter((slot) => !tickets.some((t) => t.slot === slot));
+  const busy = await busySlots();
+  return {
+    version: 1,
+    tickets: await Promise.all(
+      tickets.map(async (ticket) => {
+        const running = await runningServers(ticket);
+        const server = (key: ServerKey) => ({ up: running.includes(key), port: serverPort(ticket, key) });
+        return {
+          ticket: ticket.name,
+          slot: ticket.slot,
+          branch: ticket.branch,
+          url: slotInfo(ticket.slot).url,
+          servers: { api: server('api'), web: server('web') },
+        };
+      }),
+    ),
+    freeSlots: unassigned.filter((slot) => !busy.has(slot)),
+    busySlots: unassigned.flatMap((slot) => {
+      const port = busy.get(slot);
+      return port === undefined ? [] : [{ slot, port }];
+    }),
+  };
+}
+
+const LS_OPTIONS = {
+  json: { type: 'boolean' },
+} as const satisfies ParseArgsOptionsConfig;
+
+async function cmdLs({ values }: { values: Values; positionals: string[] }): Promise<void> {
   const tickets = Object.values(loadState().tickets).sort((a, b) => a.slot - b.slot);
+  if (values.json) {
+    // Only the JSON on stdout
+    console.log(JSON.stringify(await lsJson(tickets), null, 2));
+    return;
+  }
   if (!tickets.length) {
     console.log('No worktree tickets. Create one: pnpm wt new <branch>');
   }
@@ -921,10 +968,19 @@ Options:
   },
   ls: {
     run: cmdLs,
-    options: NO_OPTIONS,
-    help: `Usage: pnpm wt ls
+    options: LS_OPTIONS,
+    help: `Usage: pnpm wt ls [--json]
 
-Lists the tickets with slot, branch, server status (from the ports) and URL, plus the free slots.`,
+Lists the tickets with slot, branch, server status (from the ports) and URL, plus the free slots.
+
+Options:
+  --json   Print only one JSON object on stdout, for tools (the API's /api/wt-tickets reads it).
+           No paths, PIDs or database settings. Shape (version 1):
+             version
+             tickets    [{ ticket, slot, branch, url (browser),
+                           servers { api, web }: { up (port accepts connections), port } }], by slot
+             freeSlots  [slot numbers]
+             busySlots  [{ slot, port (in use by another process) }]`,
   },
   'claude-access': {
     run: cmdClaudeAccess,

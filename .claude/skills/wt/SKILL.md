@@ -50,6 +50,7 @@ When the work spans several tickets, use one session per ticket.
 | Command | Effect | Ask the user first? |
 |---|---|---|
 | `ls`, `info <ticket>` | Read-only: all slots / one ticket's status block and rules | no |
+| `ls --json` | Read-only: only a JSON object (tickets with slot, branch, URL, server status; free and busy slots; no paths) for tools such as `/api/wt-tickets`; shape in `pnpm wt ls --help` | no |
 | `info <ticket> --json` | Read-only: only a JSON object (URLs, ports, server status and PIDs, database names, Caddy, paths; no password) for scripts and test tools; shape in `pnpm wt info --help` | no |
 | `dev <ticket>` | Start the API and web dev servers in the background (logs in `../wt/<ticket>/logs/`); ends with the status block | no |
 | `park <ticket>` | Stop the dev servers and their child processes; worktree and databases stay | no |

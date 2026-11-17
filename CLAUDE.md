@@ -49,7 +49,8 @@ are containers.
 commands). The session stays in the main checkout; ticket work targets the worktree explicitly.
 The procedure for attaching to a ticket is in the `wt` skill. `pnpm wt info <ticket> --json`
 prints only a JSON object with the slot's URLs, ports, server status, database names and paths
-(no password) for scripts and test tools; its shape is in `pnpm wt info --help`.
+(no password) for scripts and test tools; its shape is in `pnpm wt info --help`. `pnpm wt ls --json`
+lists all tickets the same way; the API's development route `/api/wt-tickets` reads it.
 
 ## Instructions
 
